@@ -108,6 +108,7 @@ www/js/*
 
 # Generated extension bundles and local indexes
 *.foxe
+*.scene-search.json
 *.cap-index.json
 *.bag
 *.mcap
