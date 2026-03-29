@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import vm from "node:vm";
 
-import { ensureSceneIndex, readBagManifest } from "./scene-index-lib.mjs";
+import { ensureSceneIndex, readRecordingManifest } from "./scene-index-lib.mjs";
 
 const watchDirs = process.argv.slice(2);
 const defaultDirs = [
@@ -508,7 +508,7 @@ async function findRecordingFiles(root) {
         stack.push(fullPath);
         continue;
       }
-      if (entry.isFile() && fullPath.toLowerCase().endsWith(".bag")) {
+      if (entry.isFile() && (fullPath.toLowerCase().endsWith(".bag") || fullPath.toLowerCase().endsWith(".mcap"))) {
         results.push(fullPath);
       }
     }
@@ -526,7 +526,7 @@ async function getManifest(recordingPath) {
   if (manifestCache.has(recordingPath)) {
     return manifestCache.get(recordingPath);
   }
-  const manifest = await readBagManifest(recordingPath);
+  const manifest = await readRecordingManifest(recordingPath);
   manifestCache.set(recordingPath, manifest);
   return manifest;
 }
@@ -577,7 +577,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && req.url === "/health") {
-    json(res, 200, { ok: true, searchRoots, formats: ["bag"], mcapSupported: false });
+    json(res, 200, { ok: true, searchRoots, formats: ["bag", "mcap"], mcapSupported: true });
     return;
   }
 
@@ -588,15 +588,15 @@ const server = http.createServer(async (req, res) => {
       if (!manifest) {
         json(res, 404, {
           matched: false,
-          message: "No matching indexed ROS bag found. MCAP indexing is not supported in this build yet.",
+          message: "No matching indexed recording found in the helper search roots.",
         });
         return;
       }
 
-      const outputPath = `${manifest.bagPath}.cap-index.json`;
+      const outputPath = `${manifest.recordingPath}.cap-index.json`;
       const indexExists = await fileExists(outputPath);
       if (!indexExists) {
-        await ensureSceneIndex(manifest.bagPath, outputPath, ({ totalMessages, signalCount }) => {
+        await ensureSceneIndex(manifest.recordingPath, outputPath, ({ totalMessages, signalCount }) => {
           if (totalMessages % 10000 === 0) {
             console.log(
               `Indexing ${manifest.recordingName}: ${totalMessages} messages, ${signalCount} signals`,
@@ -608,6 +608,7 @@ const server = http.createServer(async (req, res) => {
       json(res, 200, {
         matched: true,
         recordingName: manifest.recordingName,
+        recordingFormat: manifest.recordingFormat,
         indexName: path.basename(outputPath),
         indexPath: outputPath,
       });
@@ -673,5 +674,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(port, host, () => {
   console.log(`Scene index helper listening on http://${host}:${port}`);
-  console.log(`Watching bag roots: ${searchRoots.join(", ")}`);
+  console.log(`Watching recording roots: ${searchRoots.join(", ")}`);
 });

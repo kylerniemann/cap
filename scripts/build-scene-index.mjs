@@ -24,7 +24,7 @@ function parseArgs(argv) {
 const { input, output } = parseArgs(process.argv.slice(2));
 
 if (!input) {
-  console.error("Usage: node scripts/build-scene-index.mjs <bag-file> [-o output.cap-index.json]");
+  console.error("Usage: node scripts/build-scene-index.mjs <recording-file> [-o output.cap-index.json]");
   process.exit(1);
 }
 

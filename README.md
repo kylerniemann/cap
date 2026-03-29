@@ -8,7 +8,7 @@
 
 # cap
 
-`cap` is a Foxglove extension plus a lightweight local helper for historical bag search.
+`cap` is a Foxglove extension plus a lightweight local helper for historical ROS bag and broad MCAP search.
 
 It helps users open a recording, search for scenes with quick filters or snippets, and jump straight to the matching timestamp with optional camera previews.
 
@@ -22,7 +22,7 @@ It helps users open a recording, search for scenes with quick filters or snippet
 
 Yes, for supported recordings.
 
-When a user opens a different bag, `cap` reads the topic list from Foxglove, asks the local helper to match that recording, then reloads the topic, signal, and camera metadata for that file. That means:
+When a user opens a different supported recording, `cap` reads the topic list from Foxglove, asks the local helper to match that recording, then reloads the topic, signal, and camera metadata for that file. That means:
 
 - the quick-filter signal list updates automatically
 - camera topic choices update automatically
@@ -31,7 +31,7 @@ When a user opens a different bag, `cap` reads the topic list from Foxglove, ask
 ## Supported Formats
 
 - ROS bag: supported
-- MCAP: not supported yet in this build
+- MCAP: supported for common ROS 1, ROS 2, JSON, JSON Schema, and Protobuf recordings
 
 ## Quick Start
 
@@ -42,12 +42,12 @@ npm run package
 npm run serve-index -- "C:\Users\you\Downloads"
 ```
 
-Then load the packaged `.foxe` into Foxglove and open a supported bag.
+Then load the packaged `.foxe` into Foxglove and open a supported `.bag` or `.mcap`.
 
 ## Manual Index Build
 
 ```powershell
-npm run index-bag -- "C:\path\to\recording.bag" -o "C:\path\to\recording.bag.cap-index.json"
+npm run index-recording -- "C:\path\to\recording.mcap" -o "C:\path\to\recording.mcap.cap-index.json"
 ```
 
 ## Demo Data
@@ -63,11 +63,11 @@ If an official sample bag is too big, the best alternatives are:
 ## Repo Notes
 
 - Generated `.foxe` bundles are ignored
-- Local bag files and generated indexes are ignored
+- Local bag files, MCAP files, and generated indexes are ignored
 - Suggested GitHub repo description and topics are in `.github/repository-metadata.md`
 
 ## Limitations
 
-- MCAP indexing is not implemented yet
+- Some MCAPs may still be unsupported if they use uncommon schema or custom message encodings
 - Camera previews currently rely on sparse previews from `sensor_msgs/CompressedImage`
 - Historical search depends on the local helper, not the extension alone
