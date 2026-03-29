@@ -2,13 +2,17 @@
   <img src="./assets/brand/cap-icon.svg" alt="cap icon" width="96" />
 </p>
 
+<p align="center">
+  <img src="./assets/media/quick_filters.gif" alt="cap quick filter demo" width="100%" />
+</p>
+
 # cap
 
 `cap` is a Foxglove extension plus a lightweight local helper for historical bag search.
 
 It helps users open a recording, search for scenes with quick filters or snippets, and jump straight to the matching timestamp with optional camera previews.
 
-## Screenshots
+## More Views
 
 ![cap quick filters](./assets/readme/overview.svg)
 
