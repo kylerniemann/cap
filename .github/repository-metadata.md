@@ -2,7 +2,7 @@
 
 ## Repository name
 
-`scene-search`
+`cap`
 
 ## Description
 

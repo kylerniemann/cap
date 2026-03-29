@@ -593,7 +593,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      const outputPath = `${manifest.bagPath}.scene-search.json`;
+      const outputPath = `${manifest.bagPath}.cap-index.json`;
       const indexExists = await fileExists(outputPath);
       if (!indexExists) {
         await ensureSceneIndex(manifest.bagPath, outputPath, ({ totalMessages, signalCount }) => {

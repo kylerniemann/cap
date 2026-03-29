@@ -24,11 +24,11 @@ function parseArgs(argv) {
 const { input, output } = parseArgs(process.argv.slice(2));
 
 if (!input) {
-  console.error("Usage: node scripts/build-scene-index.mjs <bag-file> [-o output.scene-search.json]");
+  console.error("Usage: node scripts/build-scene-index.mjs <bag-file> [-o output.cap-index.json]");
   process.exit(1);
 }
 
-const outputPath = output ?? `${input}.scene-search.json`;
+const outputPath = output ?? `${input}.cap-index.json`;
 
 await buildSceneIndex(input, outputPath, ({ totalMessages, signalCount }) => {
   if (totalMessages % 10000 === 0) {

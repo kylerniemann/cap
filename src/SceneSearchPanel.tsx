@@ -578,7 +578,7 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "scene-search-snippets.json";
+    anchor.download = "cap-snippets.json";
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -628,7 +628,7 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
   const button = isDark ? "#232936" : "#ffffff";
   const selected = isDark ? "#2b3340" : "#eef2f7";
   const surfaceMode = isDark ? "dark" : "light";
-  const signalListId = "scene-search-signals";
+  const signalListId = "cap-signals";
 
   return (
     <div
@@ -676,7 +676,7 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
           }}
         >
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>Scene Search</div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>cap</div>
             <div style={{ color: muted, fontSize: 11, marginTop: 2 }}>{helperStatus}</div>
             <div style={{ color: muted, fontSize: 11, marginTop: 2 }}>
               {matchedIndexName ? `${matchedIndexName} • ` : ""}

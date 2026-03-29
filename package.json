@@ -1,8 +1,8 @@
 {
-  "name": "scene-search",
-  "displayName": "Scene Search",
-  "description": "Foxglove extension plus local helper for historical bag scene search, snippets, and click-to-seek results.",
-  "publisher": "scene-search",
+  "name": "cap",
+  "displayName": "cap",
+  "description": "Foxglove extension plus local helper for historical bag scene search, snippets, camera previews, and click-to-seek results.",
+  "publisher": "cap",
   "homepage": "",
   "version": "0.1.0",
   "license": "MIT",
@@ -10,7 +10,7 @@
   "keywords": [
     "foxglove",
     "extension",
-    "scene-search",
+    "cap",
     "ros",
     "rosbag",
     "robotics",
