@@ -1,7 +1,7 @@
 {
   "name": "cap",
   "displayName": "cap",
-  "description": "Foxglove extension plus local helper for historical ROS bag and broad MCAP scene search, snippets, camera previews, and click-to-seek results.",
+  "description": "Foxglove extension for historical ROS bag and MCAP scene search, snippets, camera previews, and click-to-seek results.",
   "publisher": "cap",
   "homepage": "",
   "version": "0.2.0",

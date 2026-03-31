@@ -557,8 +557,17 @@ async function matchRecording(topics) {
   return bestScore >= 0.6 ? bestMatch : undefined;
 }
 
+function responseHeaders(extra = {}) {
+  return {
+    "access-control-allow-origin": "*",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+    "access-control-allow-headers": "content-type",
+    ...extra,
+  };
+}
+
 function json(res, code, body) {
-  res.writeHead(code, { "content-type": "application/json" });
+  res.writeHead(code, responseHeaders({ "content-type": "application/json" }));
   res.end(JSON.stringify(body));
 }
 
@@ -573,6 +582,12 @@ async function readRequestBody(req) {
 const server = http.createServer(async (req, res) => {
   if (!req.url) {
     json(res, 400, { error: "Missing URL" });
+    return;
+  }
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, responseHeaders());
+    res.end();
     return;
   }
 
