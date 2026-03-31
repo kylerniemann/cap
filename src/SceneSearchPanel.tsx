@@ -10,67 +10,28 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
+import {
+  Condition,
+  ResultRow,
+  ScanData,
+  createScanBuilder,
+  deriveResults,
+  formatDuration,
+  previewResults,
+  prettyTimestamp,
+  runSnippetSearch as runLocalSnippetSearch,
+  timeToNs,
+} from "./sceneSearchCore";
+
 type QueryMode = "quick" | "snippet";
 type LogicJoin = "AND" | "OR";
 type Operator = "is active" | "is not active" | ">" | "<" | "==" | "!=";
-
-type Condition = {
-  id: string;
-  join: LogicJoin;
-  signal: string;
-  operator: Operator;
-  value: string;
-  durationSec: string;
-};
-
-type FrameRecord = {
-  frameIndex: number;
-  timestampNs: bigint;
-  timestamp: Time;
-  topic: string;
-  schemaName: string;
-  signal: string;
-};
-
-type SignalInfo = {
-  key: string;
-  label: string;
-  topic: string;
-  path: string;
-  type: string;
-  sampleValue: string;
-  aliases: string[];
-};
-
-type ResultRow = {
-  id: string;
-  frameIndex?: number;
-  timestampNs: bigint;
-  timestamp: Time;
-  topic: string;
-  signal: string;
-  reason: string;
-  durationSec?: number;
-  recording: string;
-  previewTopic?: string;
-  previewTimestampNs?: string;
-  previewImageDataUrl?: string;
-};
 
 type SnippetDefinition = {
   id: string;
   name: string;
   code: string;
   builtin?: boolean;
-};
-
-type ScanData = {
-  topics: Immutable<Topic[]>;
-  frames: FrameRecord[];
-  signals: SignalInfo[];
-  recordingName: string;
-  indexPath: string;
-  cameraTopics: string[];
 };
 
 type PersistedState = {
@@ -86,22 +47,9 @@ type PersistedState = {
 type PanelState = {
   topics?: Immutable<Topic[]>;
   currentTime?: Time;
+  startTime?: Time;
   endTime?: Time;
   colorScheme?: RenderState["colorScheme"];
-};
-
-type SceneMetaFile = {
-  recordingName?: string;
-  topics?: Array<{ name: string; schemaName?: string }>;
-  frames?: Array<{
-    frameIndex?: number;
-    timestampNs: string;
-    topic: string;
-    schemaName?: string;
-    signal?: string;
-  }>;
-  signals?: SignalInfo[];
-  cameraTopics?: string[];
 };
 
 const BUILTIN_SNIPPETS: SnippetDefinition[] = [
@@ -157,82 +105,6 @@ const DEFAULT_CONDITION = (): Condition => ({
 
 function makeId(): string {
   return Math.random().toString(36).slice(2, 10);
-}
-
-function timeToNs(time: Time): bigint {
-  return BigInt(time.sec) * 1_000_000_000n + BigInt(time.nsec);
-}
-
-function nsToTime(timestampNs: bigint): Time {
-  return {
-    sec: Number(timestampNs / 1_000_000_000n),
-    nsec: Number(timestampNs % 1_000_000_000n),
-  };
-}
-
-function prettyTimestamp(time?: Time): string {
-  if (!time) {
-    return "-";
-  }
-  const ms = Math.floor(time.nsec / 1_000_000)
-    .toString()
-    .padStart(3, "0");
-  return `${time.sec}.${ms}s`;
-}
-
-function formatDuration(durationSec?: number): string {
-  return durationSec == undefined
-    ? "Instant"
-    : `${durationSec.toFixed(durationSec >= 10 ? 1 : 2)}s`;
-}
-
-function previewResults(scanData: ScanData): ResultRow[] {
-  return scanData.frames.slice(0, 200).map((frame) => ({
-    id: `frame-${frame.frameIndex}`,
-    frameIndex: frame.frameIndex,
-    timestampNs: frame.timestampNs,
-    timestamp: frame.timestamp,
-    topic: frame.topic,
-    signal: frame.signal,
-    reason: "Indexed frame preview",
-    recording: scanData.recordingName,
-  }));
-}
-
-function parseSceneMeta(
-  raw: string,
-  topicsFallback: Immutable<Topic[]>,
-  indexPath: string,
-): ScanData {
-  const parsed = JSON.parse(raw) as SceneMetaFile;
-  const topics =
-    parsed.topics?.map((topic) => ({
-      name: topic.name,
-      datatype: topic.schemaName ?? "",
-      schemaName: topic.schemaName ?? "",
-    })) ?? topicsFallback;
-
-  const frames: FrameRecord[] =
-    parsed.frames?.map((frame, index) => {
-      const timestampNs = BigInt(frame.timestampNs);
-      return {
-        frameIndex: frame.frameIndex ?? index,
-        timestampNs,
-        timestamp: nsToTime(timestampNs),
-        topic: frame.topic,
-        schemaName: frame.schemaName ?? "",
-        signal: frame.signal ?? frame.topic,
-      };
-    }) ?? [];
-
-  return {
-    topics,
-    frames,
-    signals: parsed.signals ?? [],
-    recordingName: parsed.recordingName ?? "Matched recording",
-    indexPath,
-    cameraTopics: parsed.cameraTopics ?? [],
-  };
 }
 
 function inputStyle(
@@ -294,10 +166,10 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
       ? initialState.conditions
       : [DEFAULT_CONDITION()],
   );
-  const [helperStatus, setHelperStatus] = useState("Waiting for Foxglove topics...");
+  const [searchStatus, setSearchStatus] = useState("Waiting for Foxglove topics...");
+  const [isIndexing, setIsIndexing] = useState(false);
   const [scanData, setScanData] = useState<ScanData | undefined>();
   const [results, setResults] = useState<ResultRow[]>([]);
-  const [matchedIndexName, setMatchedIndexName] = useState("");
   const [savedSnippets, setSavedSnippets] = useState(initialState.savedSnippets ?? []);
   const [selectedSnippetId, setSelectedSnippetId] = useState(
     initialState.selectedSnippetId ?? BUILTIN_SNIPPETS[0]!.id,
@@ -316,6 +188,7 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
       setPanelState((prev) => ({
         topics: renderState.topics ?? prev.topics,
         currentTime: renderState.currentTime ?? prev.currentTime,
+        startTime: renderState.startTime ?? prev.startTime,
         endTime: renderState.endTime ?? prev.endTime,
         colorScheme: renderState.colorScheme ?? prev.colorScheme,
       }));
@@ -323,6 +196,7 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
 
     context.watch("topics");
     context.watch("currentTime");
+    context.watch("startTime");
     context.watch("endTime");
     context.watch("colorScheme");
   }, [context]);
@@ -366,87 +240,128 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
   const signals = scanData?.signals ?? [];
   const recordingSummary = scanData
     ? `${scanData.topics.length} topics, ${signals.length} signals, ${scanData.cameraTopics.length} cameras`
-    : `${topics.length} topics detected`;
+    : isIndexing
+      ? `${topics.length} topics detected`
+      : `${topics.length} topics detected`;
 
   useEffect(() => {
     if (topics.length === 0) {
+      setIsIndexing(false);
+      setScanData(undefined);
+      setResults([]);
+      setSearchStatus("Waiting for Foxglove topics...");
       return;
     }
-    setHelperStatus("Matching the opened recording against the local helper...");
 
+    const subscribeMessageRange = context.subscribeMessageRange;
+    if (!subscribeMessageRange) {
+      setIsIndexing(false);
+      setScanData(undefined);
+      setResults([]);
+      setSearchStatus(
+        "This Foxglove build does not expose historical message ranges to extensions.",
+      );
+      return;
+    }
+
+    if (!panelState.startTime || !panelState.endTime) {
+      setIsIndexing(false);
+      setScanData(undefined);
+      setResults([]);
+      setSearchStatus("Open a recorded bag or MCAP to build a local search index.");
+      return;
+    }
     let cancelled = false;
-    const load = async () => {
-      try {
-        const matchResponse = await fetch("http://127.0.0.1:8765/match", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            topics: topics.map((topic) => ({
-              name: topic.name,
-              schemaName: topicSchemaName(topic),
-            })),
-          }),
-        });
+    let finalized = false;
+    let lastStatusUpdate = 0;
+    const completedTopics = new Set<string>();
+    const builder = createScanBuilder(topics);
 
-        const matchBody = (await matchResponse.json()) as {
-          indexName?: string;
-          indexPath?: string;
-          recordingName?: string;
-          message?: string;
-        };
+    setIsIndexing(true);
+    setScanData(undefined);
+    setResults([]);
+    setSearchStatus(`Indexing ${topics.length} topics from the opened recording...`);
 
-        if (!matchResponse.ok || !matchBody.indexPath || !matchBody.indexName) {
-          setHelperStatus(
-            matchBody.message ??
-              "No matching indexed recording found. Start the local helper and check supported formats.",
-          );
-          return;
-        }
-
-        const metaResponse = await fetch(
-          `http://127.0.0.1:8765/meta?path=${encodeURIComponent(matchBody.indexPath)}`,
-        );
-        if (!metaResponse.ok) {
-          setHelperStatus("Matched the recording, but could not load its metadata.");
-          return;
-        }
-
-        const raw = await metaResponse.text();
-        if (cancelled) {
-          return;
-        }
-
-        const parsed = parseSceneMeta(raw, topics, matchBody.indexPath);
-        setScanData(parsed);
-        setMatchedIndexName(matchBody.indexName);
-        setResults(previewResults(parsed));
-        setHelperStatus(
-          `Loaded ${parsed.signals.length} signals from ${matchBody.recordingName ?? "matched recording"}.`,
-        );
-        setConditions((prev) => {
-          if (prev[0]?.signal !== "" || !parsed.signals[0]) {
-            return prev;
-          }
-          return prev.map((condition, index) =>
-            index === 0 ? { ...condition, signal: parsed.signals[0]!.key } : condition,
-          );
-        });
-        setCameraTopic((prev) => {
-          if (prev && parsed.cameraTopics.includes(prev)) {
-            return prev;
-          }
-          return parsed.cameraTopics[0] ?? "";
-        });
-      } catch {
-        setHelperStatus("Local helper is not running. Start the companion helper on this machine.");
+    const maybeUpdateProgress = (mode: "throttled" | "force" = "throttled") => {
+      const now = Date.now();
+      if (mode !== "force" && now - lastStatusUpdate < 150) {
+        return;
       }
+      lastStatusUpdate = now;
+      setSearchStatus(
+        `Indexing ${completedTopics.size}/${topics.length} topics and ${builder
+          .getMessageCount()
+          .toLocaleString()} messages from the opened recording...`,
+      );
     };
 
-    void load();
+    const finalizeScan = () => {
+      if (cancelled || finalized || completedTopics.size !== topics.length) {
+        return;
+      }
+      finalized = true;
+      const parsed = builder.finalize();
+      setIsIndexing(false);
+      setScanData(parsed);
+      setResults(previewResults(parsed));
+      setSearchStatus(`Indexed ${parsed.signals.length} signals from the opened recording.`);
+      setConditions((prev) => {
+        if (prev[0]?.signal !== "" || !parsed.signals[0]) {
+          return prev;
+        }
+        return prev.map((condition, index) =>
+          index === 0 ? { ...condition, signal: parsed.signals[0]!.key } : condition,
+        );
+      });
+      setCameraTopic((prev) => {
+        if (prev && parsed.cameraTopics.includes(prev)) {
+          return prev;
+        }
+        return parsed.cameraTopics[0] ?? "";
+      });
+    };
+
+    const unsubscribes = topics.map((topic) =>
+      subscribeMessageRange({
+        topic: topic.name,
+        onNewRangeIterator: async (batchIterator) => {
+          try {
+            for await (const batch of batchIterator) {
+              if (cancelled) {
+                return;
+              }
+              batch.forEach((messageEvent) => {
+                builder.ingestMessageEvent(messageEvent);
+              });
+              maybeUpdateProgress();
+            }
+
+            completedTopics.add(topic.name);
+            maybeUpdateProgress("force");
+            finalizeScan();
+          } catch (error) {
+            console.error(`Failed to index ${topic.name}`, error);
+            if (!cancelled) {
+              setIsIndexing(false);
+              setSearchStatus(
+                error instanceof Error
+                  ? error.message
+                  : `Failed to index ${topic.name} from the opened recording.`,
+              );
+            }
+          }
+        },
+      }),
+    );
+
     return () => {
       cancelled = true;
+      setIsIndexing(false);
+      unsubscribes.forEach((unsubscribe) => {
+        unsubscribe();
+      });
     };
-  }, [topicSignature, topics]);
+  }, [context, panelState.endTime, panelState.startTime, topicSignature, topics]);
 
   function updateCondition(id: string, patch: Partial<Condition>): void {
     setConditions((prev) =>
@@ -460,80 +375,43 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
     );
   }
 
-  async function parseResponseRows(response: Response): Promise<ResultRow[]> {
-    const body = (await response.json()) as {
-      error?: string;
-      results?: Array<
-        Omit<ResultRow, "timestampNs" | "timestamp"> & {
-          timestampNs: string;
-          timestamp: Time;
-        }
-      >;
-    };
-    if (!response.ok || !body.results) {
-      throw new Error(body.error ?? "Request failed");
-    }
-    return body.results.map((row) => ({
-      ...row,
-      timestampNs: BigInt(row.timestampNs),
-      timestamp: row.timestamp,
-    }));
-  }
-
   function runQuickSearch(): void {
     if (!scanData) {
-      setHelperStatus("No historical index is loaded yet.");
+      setSearchStatus("No local search index is loaded yet.");
       return;
     }
-    setHelperStatus("Running quick search in the local helper...");
-    const endTimeNs = panelState.endTime ? timeToNs(panelState.endTime).toString() : undefined;
-    void fetch("http://127.0.0.1:8765/search", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        indexPath: scanData.indexPath,
+    setSearchStatus("Running quick search in the opened recording...");
+    try {
+      const nextResults = deriveResults(
+        scanData,
         conditions,
-        endTimeNs,
+        panelState.endTime ? timeToNs(panelState.endTime) : undefined,
         cameraTopic,
-      }),
-    })
-      .then(parseResponseRows)
-      .then((nextResults) => {
-        setResults(nextResults);
-        setHelperStatus(`Search complete. Found ${nextResults.length} result rows.`);
-      })
-      .catch((error: unknown) => {
-        setHelperStatus(
-          error instanceof Error ? error.message : "Quick search failed in the local helper.",
-        );
-      });
+      );
+      setResults(nextResults);
+      setSearchStatus(`Search complete. Found ${nextResults.length} result rows.`);
+    } catch (error) {
+      setSearchStatus(
+        error instanceof Error ? error.message : "Quick search failed in the opened recording.",
+      );
+    }
   }
 
   function runSnippetSearch(): void {
     if (!scanData) {
-      setHelperStatus("No historical index is loaded yet.");
+      setSearchStatus("No local search index is loaded yet.");
       return;
     }
-    setHelperStatus("Running snippet search in the local helper...");
-    void fetch("http://127.0.0.1:8765/snippet-search", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        indexPath: scanData.indexPath,
-        snippet: snippetDraft,
-        cameraTopic,
-      }),
-    })
-      .then(parseResponseRows)
-      .then((nextResults) => {
-        setResults(nextResults);
-        setHelperStatus(`Snippet complete. Found ${nextResults.length} result rows.`);
-      })
-      .catch((error: unknown) => {
-        setHelperStatus(
-          error instanceof Error ? error.message : "Snippet search failed in the local helper.",
-        );
-      });
+    setSearchStatus("Running snippet search in the opened recording...");
+    try {
+      const nextResults = runLocalSnippetSearch(scanData, snippetDraft, cameraTopic);
+      setResults(nextResults);
+      setSearchStatus(`Snippet complete. Found ${nextResults.length} result rows.`);
+    } catch (error) {
+      setSearchStatus(
+        error instanceof Error ? error.message : "Snippet search failed in the opened recording.",
+      );
+    }
   }
 
   function saveSnippet(): void {
@@ -549,7 +427,7 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
       setSelectedSnippetId(next.id);
       return [...prev, next];
     });
-    setHelperStatus(`Saved snippet "${trimmedName}".`);
+    setSearchStatus(`Saved snippet "${trimmedName}".`);
   }
 
   function newSnippet(): void {
@@ -601,9 +479,9 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
             code: item.code,
           }));
         setSavedSnippets((prev) => [...prev, ...normalized]);
-        setHelperStatus(`Imported ${normalized.length} snippets.`);
+        setSearchStatus(`Imported ${normalized.length} snippets.`);
       } catch {
-        setHelperStatus("Could not import snippets from that file.");
+        setSearchStatus("Could not import snippets from that file.");
       }
       event.target.value = "";
     };
@@ -677,9 +555,8 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
         >
           <div>
             <div style={{ fontSize: 15, fontWeight: 600 }}>cap</div>
-            <div style={{ color: muted, fontSize: 11, marginTop: 2 }}>{helperStatus}</div>
+            <div style={{ color: muted, fontSize: 11, marginTop: 2 }}>{searchStatus}</div>
             <div style={{ color: muted, fontSize: 11, marginTop: 2 }}>
-              {matchedIndexName ? `${matchedIndexName} • ` : ""}
               {recordingSummary} • current {prettyTimestamp(panelState.currentTime)}
             </div>
           </div>
