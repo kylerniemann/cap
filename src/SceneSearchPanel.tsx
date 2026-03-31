@@ -90,8 +90,28 @@ const BUILTIN_SNIPPETS: SnippetDefinition[] = [
   },
 ];
 
+const EMPTY_TOPIC_IDLE_MS = 1500;
+const INDEX_WATCHDOG_MS = 500;
+const COMPRESSED_IMAGE_SUBSCRIPTION_SCHEMAS = [
+  "foxglove.CompressedImage",
+  "foxglove_msgs/msg/CompressedImage",
+  "foxglove_msgs/CompressedImage",
+  "sensor_msgs/msg/CompressedImage",
+  "sensor_msgs/CompressedImage",
+] as const;
+
 function topicSchemaName(topic: { schemaName?: string; datatype?: string }): string {
   return topic.schemaName ?? topic.datatype ?? "";
+}
+
+function preferredSubscriptionSchema(topic: Immutable<Topic>): string | undefined {
+  const availableSchemas = new Set([topic.schemaName, ...(topic.convertibleTo ?? [])]);
+  for (const schema of COMPRESSED_IMAGE_SUBSCRIPTION_SCHEMAS) {
+    if (availableSchemas.has(schema)) {
+      return topic.schemaName === schema ? undefined : schema;
+    }
+  }
+  return undefined;
 }
 
 const DEFAULT_CONDITION = (): Condition => ({
@@ -274,7 +294,10 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
     let cancelled = false;
     let finalized = false;
     let lastStatusUpdate = 0;
+    let lastActivityAt = Date.now();
     const completedTopics = new Set<string>();
+    const pendingTopics = new Set(topics.map((topic) => topic.name));
+    const activeTopics = new Set<string>();
     const builder = createScanBuilder(topics);
 
     setIsIndexing(true);
@@ -295,7 +318,7 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
       );
     };
 
-    const finalizeScan = () => {
+    const finalizeScan = (emptyTopicCount = 0) => {
       if (cancelled || finalized || completedTopics.size !== topics.length) {
         return;
       }
@@ -304,7 +327,11 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
       setIsIndexing(false);
       setScanData(parsed);
       setResults(previewResults(parsed));
-      setSearchStatus(`Indexed ${parsed.signals.length} signals from the opened recording.`);
+      setSearchStatus(
+        emptyTopicCount > 0
+          ? `Indexed ${parsed.signals.length} signals from the opened recording. ${emptyTopicCount} topic${emptyTopicCount === 1 ? "" : "s"} had no historical messages.`
+          : `Indexed ${parsed.signals.length} signals from the opened recording.`,
+      );
       setConditions((prev) => {
         if (prev[0]?.signal !== "" || !parsed.signals[0]) {
           return prev;
@@ -321,11 +348,49 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
       });
     };
 
+    const finalizeIfReady = (mode: "complete" | "idle") => {
+      if (cancelled || finalized) {
+        return;
+      }
+
+      if (pendingTopics.size === 0 && activeTopics.size === 0) {
+        finalizeScan(0);
+        return;
+      }
+
+      if (
+        mode === "idle" &&
+        activeTopics.size === 0 &&
+        pendingTopics.size > 0 &&
+        Date.now() - lastActivityAt >= EMPTY_TOPIC_IDLE_MS
+      ) {
+        const emptyTopics = [...pendingTopics];
+        if (emptyTopics.length > 0) {
+          console.info(
+            "Assuming topics with no historical messages are complete:",
+            emptyTopics.join(", "),
+          );
+        }
+        emptyTopics.forEach((topicName) => {
+          pendingTopics.delete(topicName);
+          completedTopics.add(topicName);
+        });
+        maybeUpdateProgress("force");
+        finalizeScan(emptyTopics.length);
+      }
+    };
+
     const unsubscribes = topics.map((topic) =>
       subscribeMessageRange({
         topic: topic.name,
+        convertTo: preferredSubscriptionSchema(topic),
         onNewRangeIterator: async (batchIterator) => {
           try {
+            pendingTopics.delete(topic.name);
+            activeTopics.add(topic.name);
+            lastActivityAt = Date.now();
+            maybeUpdateProgress("force");
+
             for await (const batch of batchIterator) {
               if (cancelled) {
                 return;
@@ -333,15 +398,20 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
               batch.forEach((messageEvent) => {
                 builder.ingestMessageEvent(messageEvent);
               });
+              lastActivityAt = Date.now();
               maybeUpdateProgress();
             }
 
+            activeTopics.delete(topic.name);
             completedTopics.add(topic.name);
+            lastActivityAt = Date.now();
             maybeUpdateProgress("force");
-            finalizeScan();
+            finalizeIfReady("complete");
           } catch (error) {
             console.error(`Failed to index ${topic.name}`, error);
             if (!cancelled) {
+              activeTopics.delete(topic.name);
+              pendingTopics.delete(topic.name);
               setIsIndexing(false);
               setSearchStatus(
                 error instanceof Error
@@ -354,9 +424,14 @@ function SceneSearchPanel({ context }: { context: PanelExtensionContext }): Reac
       }),
     );
 
+    const watchdog = window.setInterval(() => {
+      finalizeIfReady("idle");
+    }, INDEX_WATCHDOG_MS);
+
     return () => {
       cancelled = true;
       setIsIndexing(false);
+      window.clearInterval(watchdog);
       unsubscribes.forEach((unsubscribe) => {
         unsubscribe();
       });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2
+
+- Fixed offline indexing getting stuck when a topic advertised by the recording had no historical messages
+- Added an indexing watchdog so the panel finalizes cleanly even when Foxglove never opens a range iterator for an empty topic
+- Improved camera preview topic detection by subscribing to compatible compressed-image schemas and recognizing converted Foxglove image schemas
+
 ## 0.2.0
 
 - Expanded MCAP decoding support to cover ROS 1, ROS 2 `ros2idl`, JSON, JSON Schema, and Protobuf recordings

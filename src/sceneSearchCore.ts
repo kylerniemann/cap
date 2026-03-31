@@ -225,6 +225,9 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 function isCompressedImageTopic(schemaName: string): boolean {
   return (
+    schemaName === "foxglove.CompressedImage" ||
+    schemaName === "foxglove_msgs/CompressedImage" ||
+    schemaName === "foxglove_msgs/msg/CompressedImage" ||
     schemaName === "sensor_msgs/CompressedImage" ||
     schemaName === "sensor_msgs/msg/CompressedImage" ||
     schemaName.endsWith("/CompressedImage")
