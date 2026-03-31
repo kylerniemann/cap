@@ -4,7 +4,7 @@
   "description": "Foxglove extension for historical ROS bag and MCAP scene search, snippets, camera previews, and click-to-seek results.",
   "publisher": "cap",
   "homepage": "",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "main": "./dist/extension.js",
   "keywords": [

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Moved historical indexing and search into the Foxglove panel so no local helper process is required for offline recordings
+- Added in-panel indexing of the currently opened bag or MCAP using Foxglove's message-range API
+- Kept quick filters, snippet search, and camera previews working against the locally built in-memory index
+- Updated package metadata and docs to reflect the helperless install flow
+
 ## 0.2.0
 
 - Expanded MCAP decoding support to cover ROS 1, ROS 2 `ros2idl`, JSON, JSON Schema, and Protobuf recordings
