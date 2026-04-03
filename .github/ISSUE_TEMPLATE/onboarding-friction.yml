@@ -1,0 +1,45 @@
+name: Onboarding friction
+description: Report setup confusion, install failures, or first-run UX friction.
+title: "[Onboarding] "
+labels:
+  - onboarding
+body:
+  - type: markdown
+    attributes:
+      value: Tell us where the first-run flow slowed down or failed.
+  - type: input
+    id: foxglove_version
+    attributes:
+      label: Foxglove version
+      placeholder: 2.x.x
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: macOS 15.4, Ubuntu 24.04, Windows 11
+    validations:
+      required: true
+  - type: input
+    id: node_version
+    attributes:
+      label: Node version
+      placeholder: 25.2.1
+  - type: textarea
+    id: what_you_ran
+    attributes:
+      label: Commands or steps you ran
+      placeholder: npm install, npm run local-install, reload Foxglove...
+    validations:
+      required: true
+  - type: textarea
+    id: friction
+    attributes:
+      label: What was confusing or broken?
+    validations:
+      required: true
+  - type: textarea
+    id: expectation
+    attributes:
+      label: What did you expect instead?

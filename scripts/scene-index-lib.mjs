@@ -71,6 +71,9 @@ function normalizeMcapTopics(reader) {
 
 function isCompressedImageTopic(schemaName) {
   return (
+    schemaName === "foxglove.CompressedImage" ||
+    schemaName === "foxglove_msgs/CompressedImage" ||
+    schemaName === "foxglove_msgs/msg/CompressedImage" ||
     schemaName === "sensor_msgs/CompressedImage" ||
     schemaName === "sensor_msgs/msg/CompressedImage" ||
     schemaName.endsWith("/CompressedImage")
@@ -81,6 +84,8 @@ function compressedImageToDataUrl(message) {
   const buffer =
     message?.data instanceof Uint8Array || Buffer.isBuffer(message?.data)
       ? Buffer.from(message.data)
+      : Array.isArray(message?.data)
+        ? Buffer.from(message.data)
       : undefined;
   if (!buffer || buffer.length === 0) {
     return undefined;

@@ -1,0 +1,54 @@
+name: Compatibility report
+description: Report an unsupported or partially supported bag or MCAP recording.
+title: "[Compatibility] "
+labels:
+  - compatibility
+body:
+  - type: markdown
+    attributes:
+      value: Help us understand which recording shape failed and where.
+  - type: dropdown
+    id: recording_format
+    attributes:
+      label: Recording format
+      options:
+        - ROS bag
+        - MCAP
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: foxglove_version
+    attributes:
+      label: Foxglove version
+      placeholder: 2.x.x
+    validations:
+      required: true
+  - type: textarea
+    id: schemas_topics
+    attributes:
+      label: Relevant schemas or topics
+      placeholder: /camera/front/compressed, /vehicle/state, sensor_msgs/CompressedImage
+    validations:
+      required: true
+  - type: checkboxes
+    id: failed_features
+    attributes:
+      label: What failed?
+      options:
+        - label: Recording did not index
+        - label: Quick filters failed
+        - label: Snippets failed
+        - label: Camera previews failed
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro details
+      placeholder: What file you opened, what query you ran, and what happened
+    validations:
+      required: true
+  - type: textarea
+    id: shareable_data
+    attributes:
+      label: Can you share a small repro recording?
+      placeholder: Link or explain why it cannot be shared

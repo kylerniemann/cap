@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "label": "private-rosbag-basic",
+      "path": ".compat-fixtures/private-rosbag-basic.bag",
+      "format": "bag",
+      "expectedTopics": ["/vehicle/state"],
+      "expectedSignals": ["vehicle.autonomy_enabled"],
+      "expectCameraPreviews": false
+    }
+  ]
+}

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3
+
+- Added a tiny synthetic MCAP demo recording at `demo/cap-demo-recording.mcap`
+- Added a guided first-run walkthrough with exact quick-filter and snippet examples
+- Added a deterministic demo generator script so the public demo asset can be reproduced locally
+- Added generated compatibility MCAP fixtures plus a validation script for repeatable indexing checks
+- Added a compatibility checklist and private bag-fixture manifest path so regression coverage is explicit instead of implied
+
 ## 0.2.2
 
 - Fixed offline indexing getting stuck when a topic advertised by the recording had no historical messages

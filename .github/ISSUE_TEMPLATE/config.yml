@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: General repository
+    url: https://github.com/kylerniemann/cap
+    about: Read the README, compatibility notes, and demo-data guidance before filing an issue.
