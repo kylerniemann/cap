@@ -6,7 +6,11 @@
 
 ## Description
 
-Foxglove extension + local helper for historical ROS bag scene search, snippets, camera previews, and click-to-seek results.
+Foxglove extension for historical ROS bag and MCAP scene search, snippets, camera previews, and click-to-seek results.
+
+## Homepage
+
+`https://github.com/kylerniemann/cap`
 
 ## Topics
 
@@ -15,6 +19,7 @@ Foxglove extension + local helper for historical ROS bag scene search, snippets,
 - robotics
 - ros
 - rosbag
+- mcap
 - autonomy
 - telemetry
 - search
